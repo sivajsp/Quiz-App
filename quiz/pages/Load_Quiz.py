@@ -8,8 +8,9 @@ import os
 import random
 load_dotenv()
 secret = os.getenv('SECRET')
+port = os.getenv('PORT')
 
-myclient = pymongo.MongoClient("mongodb://localhost:32768/", username = "myTester", password = secret)
+myclient = pymongo.MongoClient("mongodb://localhost:"+port, username = "myTester", password = secret)
 mydb = myclient["test"]
 mycol = mydb[st.session_state.selected_collection]
 questions = []
