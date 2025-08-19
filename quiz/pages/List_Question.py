@@ -37,7 +37,15 @@ with col_next:
     if st.button("Next") and st.session_state.page_num < total_pages:
         st.session_state.page_num += 1
         st.rerun()
+def add_mcq_tag_to_questions():
+    update_result = mycol.update_many(
+        {},  # Update all documents
+        {"$set": {"question type": "mcq"}}
+    )
+    st.success(f"Added 'question type: mcq' to {update_result.modified_count} questions.")
 
+if st.button("Add MCQ Tag to All Questions"):
+    add_mcq_tag_to_questions()
 # Fetch questions for current page
 skip = (st.session_state.page_num - 1) * page_size
 questions = list(mycol.find().skip(skip).limit(page_size))
@@ -55,7 +63,8 @@ if questions:
             st.session_state.edit_data = {
                 "question": selected_question["question"],
                 "options": selected_question["options"],
-                "answer": selected_question["answer"]
+                "answer": selected_question["answer"],
+                "question type": selected_question.get("question type", "")
             }
             st.session_state.edit_idx = skip + question_labels.index(selected_idx) + 1
             st.rerun()
@@ -75,13 +84,15 @@ if questions:
             new_opt = st.text_input(f"Option {i+1}", value=opt, key=f"edit_option_{i}")
             new_options.append(new_opt)
         new_answer = st.text_input("Answer", value=edit_data["answer"])
+        new_question_type = st.text_input("Question Type", value=edit_data.get("question type", ""))
         if st.button("Update Question"):
             mycol.update_one(
                 {"_id": pymongo.ObjectId(st.session_state.edit_id)},
                 {"$set": {
                     "question": new_question,
                     "options": new_options,
-                    "answer": new_answer
+                    "answer": new_answer,
+                    "question type": new_question_type
                 }}
             )
             st.success("Question updated.")

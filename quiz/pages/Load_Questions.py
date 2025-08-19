@@ -9,22 +9,54 @@ secret = os.getenv('SECRET')
 myclient = pymongo.MongoClient("mongodb://localhost:32768/", username = "myTester", password = secret)
 mydb = myclient["test"]
 mycol = mydb[st.session_state.selected_collection]
-def load_questions_from_csv(file):
-    df = pd.read_csv(file, on_bad_lines='skip')
-    questions = []
-    for _, row in df.iterrows():
-        question = {
-            "question": row["question"],
-            "options": [row[f"option_{i}"] for i in range(1, 5)],
-            "answer": row["answer"]
-        }
-        questions.append(question)
+question_type = st.radio(
+    "Select Question Type for Upload:",
+    ["mcq", "short answer", "true/false"],
+    index=0,
+    key="upload_question_type"
+)
+def load_questions_from_csv(file, question_type):
+    if question_type == "mcq":
+        df = pd.read_csv(file, on_bad_lines='skip')
+        questions = []
+        for _, row in df.iterrows():
+            question = {
+                "question": row["question"],
+                "options": [row[f"option_{i}"] for i in range(1, 5)],
+                "answer": row["answer"],
+                "question type": "mcq"
+            }
+            questions.append(question)
+    elif question_type == "short answer":
+        df = pd.read_csv(file, on_bad_lines='skip')
+        questions = []
+        for _, row in df.iterrows():
+            question = {
+                "question": row["question"],
+                "answer": row["answer"],
+                "question type": "short answer"
+            }
+            questions.append(question)
+    elif question_type == "true/false":
+        df = pd.read_csv(file, on_bad_lines='skip')
+        questions = []
+        for _, row in df.iterrows():
+            question = {
+                "question": row["question"],
+                "answer": row["answer"],
+                "question type": "true/false"
+            }
+            questions.append(question)
+    else:
+        st.error("Unsupported question type.")
+        return []
     return questions
 # Define questions and options
 
 uploaded_file = st.file_uploader("Upload your quiz CSV file", type=["csv"])
+
 if uploaded_file:
-    questions = load_questions_from_csv(uploaded_file)
+    questions = load_questions_from_csv(uploaded_file, question_type)
     count = len(questions)
     if st.button("Save Quiz to Database"):
         # Insert each question as a document
@@ -53,14 +85,29 @@ if uploaded_file:
     show_answer_key = f"show_answer_{st.session_state.q_idx}"
     if st.session_state.q_idx < len(questions):
         current = questions[st.session_state.q_idx]
-        st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
-        radio_key = f"selected_option_{st.session_state.q_idx}"
-        selected = st.radio(
-            "Select an option:",
-            current["options"],
+        # Question Display logic
+        if current.get("question type") == "mcq":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            radio_key = f"selected_option_{st.session_state.q_idx}"
+            selected = st.radio(
+                "Select an option:",
+                current["options"],
             index=None,
             key=radio_key
         )
+        elif current.get("question type") == "short answer":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            text_key = f"short_answer_{st.session_state.q_idx}"
+            st.text_input("Your Answer:", key=text_key)
+        elif current.get("question type") == "true/false":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            radio_key = f"true_false_{st.session_state.q_idx}"
+            selected = st.radio(
+                "Select True or False:",
+                ["True", "False"],
+                index=None,
+                key=radio_key
+            )
         if st.button("Show Correct Answer", key=show_answer_key):
             st.info(f"Correct Answer: {current['answer']}")
 

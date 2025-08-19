@@ -16,12 +16,26 @@ questions = []
 def load_questions_from_mongo(limit=None):
     questions = []
     for doc in mycol.find():
-        questions.append({
-            "question": doc["question"],
-            "options": doc["options"],
-            "answer": doc["answer"]
-        })
-    if limit is not None and limit < len(questions):
+        if doc.get("question type") == "mcq":
+            questions.append({
+                "question": doc["question"],
+                "options": doc.get("options", []),
+                "answer": doc["answer"],
+                "question type": doc["question type"]
+            })
+        elif doc.get("question type") == "short answer":
+            questions.append({
+                "question": doc["question"],
+                "answer": doc["answer"],
+                "question type": doc["question type"]
+            })
+        elif doc.get("question type") == "true/false":
+            questions.append({
+                "question": doc["question"],
+                "answer": doc["answer"],
+                "question type": doc["question type"]
+            })
+    if isinstance(limit, int) and limit < len(questions):
         questions = random.sample(questions, limit)
     return questions
 # Define questions and options
@@ -29,11 +43,14 @@ if "questions" not in st.session_state:
     st.session_state.questions = []
 num_questions = st.radio(
     "Select number of questions to load:",
-    [10, 15, 20, 30],
+    [10, 15, 20, 30, "all"],
     index=0
 )
 if st.button("Load Questions from Database"):
-    st.session_state.questions = load_questions_from_mongo(limit=num_questions)
+    if num_questions == "all":
+        st.session_state.questions = load_questions_from_mongo()
+    else:
+        st.session_state.questions = load_questions_from_mongo(limit=num_questions)
     st.session_state.q_idx = 0
     st.session_state.results = []
     st.session_state.submitted = False
@@ -51,8 +68,15 @@ if "submitted" not in st.session_state:
 
 def record_answer():
     current = questions[st.session_state.q_idx]
-    radio_key = f"selected_option_{st.session_state.q_idx}"
-    selected = st.session_state.get(radio_key)
+    if current.get("question type") == "mcq":
+        radio_key = f"selected_option_{st.session_state.q_idx}"
+        selected = st.session_state.get(radio_key)
+    elif current.get("question type") == "short answer":
+        text_key = f"short_answer_{st.session_state.q_idx}"
+        selected = st.session_state.get(text_key)
+    elif current.get("question type") == "true/false":
+        radio_key = f"true_false_{st.session_state.q_idx}"
+        selected = st.session_state.get(radio_key)
     if selected:
         st.session_state.results.append(selected == current["answer"])
 
@@ -75,14 +99,29 @@ if questions:
 
     if st.session_state.q_idx < len(questions):
         current = questions[st.session_state.q_idx]
-        st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
-        radio_key = f"selected_option_{st.session_state.q_idx}"
-        selected = st.radio(
-            "Select an option:",
-            current["options"],
+         # Question Display logic
+        if current.get("question type") == "mcq":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            radio_key = f"selected_option_{st.session_state.q_idx}"
+            selected = st.radio(
+                "Select an option:",
+                current["options"],
             index=None,
             key=radio_key
         )
+        elif current.get("question type") == "short answer":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            text_key = f"short_answer_{st.session_state.q_idx}"
+            st.text_input("Your Answer:", key=text_key)
+        elif current.get("question type") == "true/false":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            radio_key = f"true_false_{st.session_state.q_idx}"
+            selected = st.radio(
+                "Select True or False:",
+                ["True", "False"],
+                index=None,
+                key=radio_key
+            )
          # Show Correct Answer button
         show_answer_key = f"show_answer_{st.session_state.q_idx}"
         if st.button("Show Correct Answer", key=show_answer_key):
