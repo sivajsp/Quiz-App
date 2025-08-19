@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import pymongo
+import gtts
 from dotenv import load_dotenv
 import os
+import io
 load_dotenv()
 secret = os.getenv('SECRET')
 
@@ -11,7 +13,7 @@ mydb = myclient["test"]
 mycol = mydb[st.session_state.selected_collection]
 question_type = st.radio(
     "Select Question Type for Upload:",
-    ["mcq", "short answer", "true/false"],
+    ["mcq", "short answer", "true/false", "readout loud"],
     index=0,
     key="upload_question_type"
 )
@@ -47,12 +49,27 @@ def load_questions_from_csv(file, question_type):
                 "question type": "true/false"
             }
             questions.append(question)
+    elif question_type == "readout loud":
+        df = pd.read_csv(file, on_bad_lines='skip')
+        questions = []
+        for _, row in df.iterrows():
+            question = {
+                "question": row["question"],
+                "answer": row["answer"],
+                "question type": "readout loud"
+            }
+            questions.append(question)
     else:
         st.error("Unsupported question type.")
         return []
     return questions
 # Define questions and options
-
+def text_to_speech(text):
+    tts = gtts.gTTS(text, lang='nl', slow=False)
+    audio_file = io.BytesIO()
+    tts.write_to_fp(audio_file)
+    audio_file.seek(0)
+    return audio_file
 uploaded_file = st.file_uploader("Upload your quiz CSV file", type=["csv"])
 
 if uploaded_file:
@@ -108,6 +125,11 @@ if uploaded_file:
                 index=None,
                 key=radio_key
             )
+        elif current.get("question type") == "readout loud":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            audio_file = text_to_speech(current['question'])
+            st.audio(audio_file, format="audio/mp3")
+            st.text_input("Your Answer:", key=f"readout_loud_{st.session_state.q_idx}")
         if st.button("Show Correct Answer", key=show_answer_key):
             st.info(f"Correct Answer: {current['answer']}")
 
