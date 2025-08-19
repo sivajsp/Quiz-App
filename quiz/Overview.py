@@ -73,3 +73,34 @@ if st.session_state.get("show_create", False):
 # ...existing code...
 
 # ...existing code...
+# ...existing code...
+### Hierarchical Tagging
+#st.subheader("Hierarchical Tagging")
+#
+## Step 1: Define hierarchy levels
+#hierarchy_levels = ["Topic", "Subtopic"]
+#hierarchy = {}
+#
+#for level in hierarchy_levels:
+#    hierarchy[level] = st.text_input(f"Enter {level} name:", key=f"hierarchy_{level}")
+#
+#if st.button("Set Hierarchy"):
+#    st.session_state.hierarchy_tags = [v for v in hierarchy.values() if v]
+#    st.success(f"Hierarchy set: {st.session_state.hierarchy_tags}")
+#
+## Step 2: Use hierarchy tags when uploading questions
+#if st.session_state.get("hierarchy_tags"):
+#    st.write("Current hierarchy tags:", st.session_state.hierarchy_tags)
+#    # Example upload form
+#    question_text = st.text_input("Question text", key="hierarchy_question")
+#    answer_text = st.text_input("Answer", key="hierarchy_answer")
+#    if st.button("Upload Question with Hierarchy"):
+#        doc = {
+#            "question": question_text,
+#            "answer": answer_text,
+#            "tags": st.session_state.hierarchy_tags
+#        }
+#        mydb[selected_collection].insert_one(doc)
+#        st.success("Question uploaded with hierarchical tags.") '''
+#
+# ...existing code...
