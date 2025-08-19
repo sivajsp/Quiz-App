@@ -6,11 +6,12 @@ import pymongo
 from dotenv import load_dotenv
 import os
 import random
+import gtts
+import io
 load_dotenv()
 secret = os.getenv('SECRET')
-port = os.getenv('PORT')
 
-myclient = pymongo.MongoClient("mongodb://localhost:"+port, username = "myTester", password = secret)
+myclient = pymongo.MongoClient("mongodb://localhost:32768", username = "myTester", password = secret)
 mydb = myclient["test"]
 mycol = mydb[st.session_state.selected_collection]
 questions = []
@@ -36,9 +37,21 @@ def load_questions_from_mongo(limit=None):
                 "answer": doc["answer"],
                 "question type": doc["question type"]
             })
+        elif doc.get("question type") == "readout loud":
+            questions.append({
+                "question": doc["question"],
+                "answer": doc["answer"],
+                "question type": doc["question type"]
+            })
     if isinstance(limit, int) and limit < len(questions):
         questions = random.sample(questions, limit)
     return questions
+def text_to_speech(text):
+    tts = gtts.gTTS(text, lang='nl', slow=False)
+    audio_file = io.BytesIO()
+    tts.write_to_fp(audio_file)
+    audio_file.seek(0)
+    return audio_file
 # Define questions and options
 if "questions" not in st.session_state:
     st.session_state.questions = []
@@ -78,6 +91,9 @@ def record_answer():
     elif current.get("question type") == "true/false":
         radio_key = f"true_false_{st.session_state.q_idx}"
         selected = st.session_state.get(radio_key)
+    elif current.get("question type") == "readout loud":
+        stext_key = f"short_answer_{st.session_state.q_idx}"
+        selected = st.session_state.get(text_key)
     if selected:
         st.session_state.results.append(selected == current["answer"])
 
@@ -123,6 +139,11 @@ if questions:
                 index=None,
                 key=radio_key
             )
+        elif current.get("question type") == "readout loud":
+            st.write(f"Question {st.session_state.q_idx + 1}: {current['question']}")
+            audio_file = text_to_speech(current['question'])
+            st.audio(audio_file, format="audio/mp3")
+            st.text_input("Your Answer:", key=f"readout_loud_{st.session_state.q_idx}")
          # Show Correct Answer button
         show_answer_key = f"show_answer_{st.session_state.q_idx}"
         if st.button("Show Correct Answer", key=show_answer_key):
