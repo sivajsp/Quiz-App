@@ -37,15 +37,6 @@ with col_next:
     if st.button("Next") and st.session_state.page_num < total_pages:
         st.session_state.page_num += 1
         st.rerun()
-def add_mcq_tag_to_questions():
-    update_result = mycol.update_many(
-        {},  # Update all documents
-        {"$set": {"question type": "mcq"}}
-    )
-    st.success(f"Added 'question type: mcq' to {update_result.modified_count} questions.")
-
-if st.button("Add MCQ Tag to All Questions"):
-    add_mcq_tag_to_questions()
 # Fetch questions for current page
 skip = (st.session_state.page_num - 1) * page_size
 questions = list(mycol.find().skip(skip).limit(page_size))
