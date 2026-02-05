@@ -6,20 +6,27 @@ import streamlit as st
 import pymongo
 from dotenv import load_dotenv
 import os
+
+st.set_page_config(
+    page_title="Anki Study - Quiz App",
+    page_icon="🧠",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
 load_dotenv()
 secret = os.getenv('SECRET')
+
 # Initialize MongoDB client
-client = pymongo.MongoClient("mongodb://localhost:32768/", username = "myTester", password = secret)
+client = pymongo.MongoClient("mongodb://localhost:32768/", username="myTester", password=secret)
 db = client["test"]
 collection = db["anki_collection"]
 
-# ...existing code...
+# --- Header ---
+st.header("Anki Study Session")
+st.caption("Spaced repetition learning with SM-2 algorithm")
 
 # Test data to load into the database
-
-# Insert test data into the database if collection is empty
-# ...existing code...
-# Load existing cards from the database
 test_data = [
     {
         "question": "What is the capital of France?",
@@ -45,18 +52,7 @@ test_data = [
 ]
 
 deck = test_data
-#for doc in collection.find():
-#    card_data = {
-#       "id": str(doc.get("_id", "")),
-#        "question": doc.get("question", ""),
-#        "answer": doc.get("answer", ""),
-#        "tags": doc.get("tags", []),
-#       "due": doc.get("due", datetime.now(timezone.utc)),
-#        "state": doc.get("state", None)  # SM-2 expects a state field
-#    }
-#    deck.append(Card.from_dict(card_data))
-#if not deck:
-#    st.warning("No cards found in the collection. Please add cards to start the quiz.")
+
 # Initialize the scheduler
 scheduler = Scheduler()
 
@@ -65,22 +61,39 @@ if "anki_idx" not in st.session_state:
     st.session_state.anki_idx = 0
 if "anki_review_logs" not in st.session_state:
     st.session_state.anki_review_logs = []
+
 idx = st.session_state.anki_idx
+total = len(deck)
+
+# --- Progress ---
+st.progress((idx) / total)
+st.caption(f"Card {idx + 1} of {total}")
+
+st.write("---")
+
 card = deck[idx]
-st.write(f"Q{idx+1}: {card.question}")
-user_answer = st.text_input(f"Your answer for Q{idx+1}", key=f"answer_{idx}")
+
+# --- Card display ---
+st.markdown(f"### {card['question']}")
+if card.get("tags"):
+    st.caption(f"Tags: {', '.join(card['tags'])}")
+
+user_answer = st.text_input("Your answer:", key=f"answer_{idx}", placeholder="Type your answer here...")
+
 rating_label = st.radio(
-    "How easy was this card?",
+    "How confident are you?",
     ["Easy", "Medium", "Hard"],
-    key=f"rating_{idx}"
+    key=f"rating_{idx}",
+    horizontal=True
 )
 
-if st.button("Check"):
-    if user_answer.strip().lower() == card.answer.strip().lower():
-        st.success("Correct!")
+if st.button("Check Answer", type="primary"):
+    if user_answer.strip().lower() == card["answer"].strip().lower():
+        st.success(f"Correct! The answer is **{card['answer']}**.")
     else:
-        st.error(f"Incorrect! Correct answer: {card.answer}")
+        st.error(f"Incorrect. The correct answer is **{card['answer']}**.")
         rating_label = "Again"
+
     # Map radio selection to SM-2 rating
     if rating_label == "Easy":
         rating = Rating.Easy
@@ -90,31 +103,44 @@ if st.button("Check"):
         rating = Rating.Hard
     else:
         rating = Rating.Again
-    card, review_log = scheduler.review_card(card, rating)
+
+    card_obj = Card()
+    card_obj, review_log = scheduler.review_card(card_obj, rating)
     st.session_state.anki_review_logs.append({
-        "question": card.question,
-        "answer": card.answer,
+        "question": card["question"],
+        "answer": card["answer"],
         "user_answer": user_answer,
         "rating": rating_label,
-        "next_due": str(card.due),
-        "review_log": review_log,
-        "tags": getattr(card, "tags", [])
+        "correct": user_answer.strip().lower() == card["answer"].strip().lower(),
+        "next_due": str(card_obj.due),
+        "tags": card.get("tags", [])
     })
     if idx < len(deck) - 1:
         st.session_state.anki_idx += 1
         st.rerun()
     else:
         st.session_state.anki_idx = 0
-        st.success("Review session completed!")
+        st.success("Review session completed! Check the review log below.")
 
-# Show review log at the bottom
+# --- Review Log ---
 st.write("---")
-st.subheader("Review Log")
-for log in st.session_state.anki_review_logs:
-    st.write(f"Q: {log['question']}")
-    st.write(f"Your Answer: {log['user_answer']}")
-    st.write(f"Correct Answer: {log['answer']}")
-    st.write(f"Rating: {log['rating']}")
-    st.write(f"Next Due: {log['next_due']}")
-    st.write(f"Review Log: {log['review_log']}")
-    st.write("---")
+if st.session_state.anki_review_logs:
+    st.subheader(f"Review Log ({len(st.session_state.anki_review_logs)} reviews)")
+    for i, log in enumerate(reversed(st.session_state.anki_review_logs)):
+        icon = "✅" if log.get("correct") else "❌"
+        with st.expander(f"{icon} {log['question'][:60]}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Your answer:** {log['user_answer']}")
+                st.markdown(f"**Correct answer:** {log['answer']}")
+            with col2:
+                st.markdown(f"**Rating:** {log['rating']}")
+                st.markdown(f"**Next due:** {log['next_due'][:10]}")
+            if log.get("tags"):
+                st.caption(f"Tags: {', '.join(log['tags'])}")
+
+    if st.button("Clear Review Log"):
+        st.session_state.anki_review_logs = []
+        st.rerun()
+else:
+    st.caption("No reviews yet. Answer a question above to start.")
