@@ -1,0 +1,158 @@
+services:
+  node1:
+    build: ./isg-index
+    container_name: node1
+    restart: unless-stopped
+    environment:
+      - node.name=node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true # along with the memlock settings below, disables swapping
+      - "OPENSEARCH_JAVA_OPTS=-Xms4096m -Xmx4096m" # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536 # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
+        hard: 65536
+    volumes:
+      - isg-data:/usr/share/opensearch/data
+      - ./isg-index/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./isg-index/opensearch-security/:/usr/share/opensearch/config/opensearch-security/
+    expose:
+      - "9200"
+      - "9600"
+    networks:
+      - isg-net
+    healthcheck:
+      test: timeout 1 bash -c 'cat < /dev/null > /dev/tcp/node1/9200'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "128m"
+        max-file: "5"
+  dashboards:
+    build: 
+      context: ./isg-dashboard
+    container_name: isg-dashboard
+    restart: unless-stopped
+    depends_on:
+      node1:
+        condition: service_healthy
+    expose:
+      - "5601"
+    volumes:
+      - ./isg-dashboard/dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+      - ./isg-dashboard/ISG-Dashboard-SavedObjects.ndjson:/ISG-Dashboard-SavedObjects.ndjson
+      - ./media/:/usr/share/opensearch-dashboards/src/core/server/core_app/assets/media/
+    environment:
+      OPENSEARCH_HOSTS: '["https://node1:9200"]'
+    networks:
+      - isg-net
+    healthcheck:
+      test: timeout 1 bash -c 'cat < /dev/null > /dev/tcp/isg-dashboard/5601'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "128m"
+        max-file: "5"
+  fluentd:
+    build:
+      context: ./isg-ingest
+      dockerfile: ./Dockerfile
+      args:
+        TARGET: on-premise
+    depends_on:
+      node1:
+        condition: service_healthy
+    restart: unless-stopped
+    container_name: isg-ingest
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    expose:
+      - "7001"
+      - "24220"
+    networks:
+      - isg-net
+    healthcheck:
+      test: timeout 1 bash -c 'cat < /dev/null > /dev/tcp/isg-ingest/7001'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "128m"
+        max-file: "5"
+  cron:
+    build:
+      context: ./isg-cron
+    depends_on:
+      node1:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./isg-index/policy_queries:/policy
+    container_name: isg-cron
+    networks:
+      - isg-net
+  proxy:
+    build: ./isg-proxy
+    container_name: isg-proxy
+    restart: unless-stopped
+    volumes:
+      - ./isg-proxy/nginx.conf:/etc/nginx/nginx.conf
+      - ./isg-proxy/isg.crt:/ssl/isg.crt
+      - ./isg-proxy/isg.key:/ssl/isg.key
+      - ./isg-proxy/global.pass:/etc/keys/global.pass
+    ports:
+      - "443:443"
+      - "80:80"
+    networks:
+      - isg-net
+    healthcheck:
+      test: nc -zv isg-proxy 443
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "128m"
+        max-file: "5"
+  isg_tools:
+    build: 
+      context: ./isg-tools
+    depends_on:
+      node1:
+        condition: service_healthy
+    restart: unless-stopped
+    container_name: isg-tools
+    networks:
+      - isg-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "128m"
+        max-file: "5"
+
+volumes:
+  isg-data:
+
+networks:
+  isg-net:
